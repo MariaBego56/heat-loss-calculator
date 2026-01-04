@@ -215,11 +215,16 @@ function App() {
       win3Area: '',
       totalWinArea: '',
       
-      // External door
-      doorType: '',
-      doorH: '',
-      doorW: '',
-      doorArea: '',
+      // External doors (up to 2)
+      door1Type: '',
+      door1H: '',
+      door1W: '',
+      door1Area: '',
+      door2Type: '',
+      door2H: '',
+      door2W: '',
+      door2Area: '',
+      totalDoorArea: '',
       
       floorType: '',
       ceilingType: '',
@@ -324,12 +329,22 @@ function App() {
       const wa3 = parseFloat(u.win3Area) || 0;
       u.totalWinArea = (wa1 + wa2 + wa3).toFixed(2);
       
-      // Calculate door area
-      if (field.includes('door') && (field.includes('H') || field.includes('W'))) {
-        const h = parseFloat(u.doorH) || 0;
-        const w = parseFloat(u.doorW) || 0;
-        u.doorArea = h && w ? (h * w).toFixed(2) : '';
+      // Calculate door areas
+      if (field.includes('door1')) {
+        const h = parseFloat(u.door1H) || 0;
+        const w = parseFloat(u.door1W) || 0;
+        u.door1Area = h && w ? (h * w).toFixed(2) : '';
       }
+      if (field.includes('door2')) {
+        const h = parseFloat(u.door2H) || 0;
+        const w = parseFloat(u.door2W) || 0;
+        u.door2Area = h && w ? (h * w).toFixed(2) : '';
+      }
+      
+      // Calculate total door area
+      const da1 = parseFloat(u.door1Area) || 0;
+      const da2 = parseFloat(u.door2Area) || 0;
+      u.totalDoorArea = (da1 + da2).toFixed(2);
       
       // Calculate heat loss - ALWAYS RECALCULATE
       const hasBasicData = u.requiredTemp && u.designTemp && u.length && u.width && u.height;
@@ -337,7 +352,8 @@ function App() {
       if (hasBasicData) {
         const wallU = WALL_TYPES[u.wallType] || 1.5;
         const baseWinU = WINDOW_TYPES[u.windowType] || 0;
-        const doorU = DOOR_TYPES[u.doorType] || 0;
+        const door1U = DOOR_TYPES[u.door1Type] || 0;
+        const door2U = DOOR_TYPES[u.door2Type] || 0;
         
         // Apply window condition factor to U-value
         const windowConditionData = WINDOW_CONDITIONS[u.windowCondition] || { factor: 1.0, infiltration: 0 };
@@ -345,15 +361,19 @@ function App() {
         
         const wallA = parseFloat(u.totalWallArea) || 0;
         const winA = parseFloat(u.totalWinArea) || 0;
-        const doorA = parseFloat(u.doorArea) || 0;
-        const netWall = Math.max(0, wallA - winA - doorA);
+        const door1A = parseFloat(u.door1Area) || 0;
+        const door2A = parseFloat(u.door2Area) || 0;
+        const totalDoorA = door1A + door2A;
+        const netWall = Math.max(0, wallA - winA - totalDoorA);
         
         const tempDiff = (parseFloat(u.requiredTemp) || 21) - (parseFloat(u.designTemp) || -3);
         const roomTemp = parseFloat(u.requiredTemp) || 21;
         
         const wallLoss = netWall * wallU * tempDiff;
         const winLoss = winA * winU * tempDiff;
-        const doorLoss = doorA * doorU * tempDiff;
+        const door1Loss = door1A * door1U * tempDiff;
+        const door2Loss = door2A * door2U * tempDiff;
+        const doorLoss = door1Loss + door2Loss;
         
         const floorArea = (parseFloat(u.length) || 0) * (parseFloat(u.width) || 0);
         
@@ -503,9 +523,13 @@ function App() {
     data.push([]); // Empty row
     
     data.push(['EXTERNAL DOOR', ...rooms.map(() => '')]);
-    data.push(['Door Type', ...rooms.map(r => r.doorType || 'No Door')]);
-    data.push(['Door U-Value (W/m²K)', ...rooms.map(r => r.doorType ? DOOR_TYPES[r.doorType] : '-')]);
-    data.push(['Door Area (m²)', ...rooms.map(r => r.doorArea || '-')]);
+    data.push(['Door 1 Type', ...rooms.map(r => r.door1Type || 'No Door')]);
+    data.push(['Door 1 U-Value (W/m²K)', ...rooms.map(r => r.door1Type ? DOOR_TYPES[r.door1Type] : '-')]);
+    data.push(['Door 1 Area (m²)', ...rooms.map(r => r.door1Area || '-')]);
+    data.push(['Door 2 Type', ...rooms.map(r => r.door2Type || 'No Door')]);
+    data.push(['Door 2 U-Value (W/m²K)', ...rooms.map(r => r.door2Type ? DOOR_TYPES[r.door2Type] : '-')]);
+    data.push(['Door 2 Area (m²)', ...rooms.map(r => r.door2Area || '-')]);
+    data.push(['Total Door Area (m²)', ...rooms.map(r => r.totalDoorArea || '-')]);
     data.push([]); // Empty row
     
     data.push(['FLOOR & CEILING', ...rooms.map(() => '')]);
@@ -841,34 +865,69 @@ function App() {
                 )}
               </div>
 
-              {/* External Door */}
+              {/* External Doors */}
               <div className="border-t-2 pt-4">
-                <h3 className="font-semibold text-gray-800 mb-3">External Door (Front/Back Door)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Door Type</label>
-                    <select value={room.doorType} onChange={(e) => updateRoom(room.id, 'doorType', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none">
-                      <option value="">Select door type</option>
-                      {Object.keys(DOOR_TYPES).map(t => <option key={t} value={t}>{t} (U={DOOR_TYPES[t]} W/m²K)</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Height (m)</label>
-                    <input type="number" step="0.01" placeholder="e.g., 2.1" value={room.doorH}
-                      onChange={(e) => updateRoom(room.id, 'doorH', e.target.value)}
-                      className="w-full px-3 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Width (m)</label>
-                    <input type="number" step="0.01" placeholder="e.g., 0.9" value={room.doorW}
-                      onChange={(e) => updateRoom(room.id, 'doorW', e.target.value)}
-                      className="w-full px-3 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none" />
+                <h3 className="font-semibold text-gray-800 mb-3">External Doors (Enter up to 2 doors)</h3>
+                
+                {/* Door 1 */}
+                <div className="mb-4">
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Door 1 (e.g., Front Door)</label>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <select value={room.door1Type} onChange={(e) => updateRoom(room.id, 'door1Type', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none text-sm">
+                        <option value="">Select door type</option>
+                        {Object.keys(DOOR_TYPES).map(t => <option key={t} value={t}>{t} (U={DOOR_TYPES[t]})</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <input type="number" step="0.01" placeholder="Height (m)" value={room.door1H}
+                        onChange={(e) => updateRoom(room.id, 'door1H', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none text-sm" />
+                    </div>
+                    <div>
+                      <input type="number" step="0.01" placeholder="Width (m)" value={room.door1W}
+                        onChange={(e) => updateRoom(room.id, 'door1W', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none text-sm" />
+                    </div>
+                    <div>
+                      <input type="text" placeholder="Area (m²)" value={room.door1Area} readOnly
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm font-medium" />
+                    </div>
                   </div>
                 </div>
-                {room.doorArea && (
+                
+                {/* Door 2 */}
+                <div className="mb-4">
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Door 2 (e.g., Back Door / Patio Door)</label>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <select value={room.door2Type} onChange={(e) => updateRoom(room.id, 'door2Type', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none text-sm">
+                        <option value="">Select door type</option>
+                        {Object.keys(DOOR_TYPES).map(t => <option key={t} value={t}>{t} (U={DOOR_TYPES[t]})</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <input type="number" step="0.01" placeholder="Height (m)" value={room.door2H}
+                        onChange={(e) => updateRoom(room.id, 'door2H', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none text-sm" />
+                    </div>
+                    <div>
+                      <input type="number" step="0.01" placeholder="Width (m)" value={room.door2W}
+                        onChange={(e) => updateRoom(room.id, 'door2W', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none text-sm" />
+                    </div>
+                    <div>
+                      <input type="text" placeholder="Area (m²)" value={room.door2Area} readOnly
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50 text-sm font-medium" />
+                    </div>
+                  </div>
+                </div>
+                
+                {room.totalDoorArea && parseFloat(room.totalDoorArea) > 0 && (
                   <div className="mt-3 bg-indigo-50 p-3 rounded-lg">
-                    <p className="text-sm font-medium text-indigo-900">Door Area: {room.doorArea} m²</p>
+                    <p className="text-sm font-medium text-indigo-900">Total Door Area: {room.totalDoorArea} m²</p>
                   </div>
                 )}
               </div>
