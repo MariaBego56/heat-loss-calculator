@@ -2,12 +2,30 @@ import React, { useState } from 'react';
 import { Download, Plus, Trash2, Home, User, Calendar, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-const ROOM_TYPES = [
-  'Living Room', 'Second Living Room', 'Kitchen', 'Bedroom 1', 'Bedroom 2', 'Bedroom 3', 
-  'Bedroom 4', 'Hallway', 'Middle Hallway', 'Upper Hallway', 
-  'Bathroom 1', 'Bathroom 2', 'Dining Room', 'Study', 'Utility Room',
-  'Loo', 'Laundry Room', 'Pantry', 'Basement'
-];
+const ROOM_TYPE_DATA = {
+  'Living Room': { ach: 1.0, defaultTemp: 21 },
+  'Second Living Room': { ach: 1.0, defaultTemp: 21 },
+  'Kitchen': { ach: 2.0, defaultTemp: 18 },
+  'Bedroom 1': { ach: 0.5, defaultTemp: 18 },
+  'Bedroom 2': { ach: 0.5, defaultTemp: 18 },
+  'Bedroom 3': { ach: 0.5, defaultTemp: 18 },
+  'Bedroom 4': { ach: 0.5, defaultTemp: 18 },
+  'Hallway': { ach: 1.5, defaultTemp: 18 },
+  'Middle Hallway': { ach: 1.5, defaultTemp: 18 },
+  'Upper Hallway': { ach: 1.5, defaultTemp: 18 },
+  'Bathroom 1': { ach: 3.0, defaultTemp: 22 },
+  'Bathroom 2': { ach: 3.0, defaultTemp: 22 },
+  'Dining Room': { ach: 1.0, defaultTemp: 21 },
+  'Study': { ach: 1.0, defaultTemp: 21 },
+  'Utility Room': { ach: 2.0, defaultTemp: 16 },
+  'Loo': { ach: 2.0, defaultTemp: 18 },
+  'Laundry Room': { ach: 2.0, defaultTemp: 16 },
+  'Pantry': { ach: 0.5, defaultTemp: 12 },
+  'Basement': { ach: 0.5, defaultTemp: 18 },
+  'En-Suite': { ach: 3.0, defaultTemp: 22 },
+  'Shower Room': { ach: 3.0, defaultTemp: 22 }
+};
+const ROOM_TYPES = Object.keys(ROOM_TYPE_DATA);
 
 const WALL_TYPES = {
   'No External Wall': 0,
@@ -49,7 +67,9 @@ const RADIATOR_TYPES = [
   'Double Panel Type 22 (K3)',
   'Compact Type 11',
   'Compact Type 21',
-  'Compact Type 22'
+  'Compact Type 22',
+  'Towel Rail - Chrome',
+  'Towel Rail - White'
 ];
 
 // Radiator outputs at ΔT50 in Watts - organized by type, then height, then length
@@ -102,7 +122,39 @@ const RADIATOR_OUTPUTS = {
     500: { 400: 870, 500: 1088, 600: 1305, 700: 1523, 800: 1740, 900: 1958, 1000: 2175, 1100: 2393, 1200: 2610, 1400: 3045, 1600: 3480, 1800: 3915, 2000: 4350 },
     600: { 400: 1044, 500: 1305, 600: 1566, 700: 1827, 800: 2088, 900: 2349, 1000: 2610, 1100: 2871, 1200: 3132, 1400: 3654, 1600: 4176, 1800: 4698, 2000: 5220 },
     700: { 400: 1218, 500: 1523, 600: 1827, 700: 2132, 800: 2436, 900: 2741, 1000: 3045, 1100: 3350, 1200: 3654, 1400: 4263, 1600: 4872, 1800: 5481, 2000: 6090 }
-  }
+  },
+  'Towel Rail - Chrome':{
+  800: { 400: 200, 500: 250, 600: 300 },
+  1000: { 400: 280, 500: 350, 600: 420 },
+  1200: { 400: 350, 500: 440, 600: 530 },
+  1500: { 400: 450, 500: 560, 600: 670 },
+  1800: { 400: 550, 500: 690, 600: 830 }
+},
+'Towel Rail - White': {
+  800: { 400: 220, 500: 275, 600: 330 },
+  1000: { 400: 310, 500: 385, 600: 460 },
+  1200: { 400: 385, 500: 480, 600: 575 },
+  1500: { 400: 495, 500: 615, 600: 735 },
+  1800: { 400: 600, 500: 750, 600: 900 }
+}
+
+};
+
+// Building age for thermal bridging
+const BUILDING_AGE = {
+  'Pre-1965': 0.15,
+  '1965-1982': 0.12,
+  '1983-1995': 0.10,
+  '1996-2006': 0.08,
+  'Post-2006': 0.05
+};
+
+// Heating pattern for intermittent uplift
+const HEATING_PATTERN = {
+  'Continuous (24 hours)': 0,
+  '16 hours per day': 0.10,
+  '12 hours per day': 0.15,
+  '9 hours per day': 0.20
 };
 
 // Function to lookup radiator output, with interpolation for non-standard sizes
@@ -175,6 +227,8 @@ function App() {
   const [propertyName, setPropertyName] = useState('');
   const [engineerName, setEngineerName] = useState('');
   const [assessmentDate, setAssessmentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [buildingAge, setBuildingAge] = useState('1983-1995');
+  const [heatingPattern, setHeatingPattern] = useState('12 hours per day');
   const [rooms, setRooms] = useState([createEmptyRoom()]);
 
   function createEmptyRoom() {
@@ -275,6 +329,10 @@ function App() {
       
       const u = { ...room, [field]: value };
       
+      //auto-set temperature when room type changes
+      if (field === 'roomType' && ROOM_TYPE_DATA[value]) {
+        u.requiredTemp = ROOM_TYPE_DATA[value].defaultTemp.toString();
+}
       // Calculate room volume
       if (['height', 'length', 'width'].includes(field)) {
         const h = parseFloat(u.height) || 0;
@@ -411,12 +469,19 @@ function App() {
         
         u.fabricHeatLoss = (wallLoss + winLoss + doorLoss + floorLoss + ceilingLoss).toFixed(0);
         
-        // Ventilation heat loss (base 1 air change per hour + window infiltration)
-        const vol = parseFloat(u.volume) || 0;
-        const baseAirChangeRate = 1.0;
-        const windowInfiltration = windowConditionData.infiltration * (winA / 10); // Additional ACH based on window area and condition
-        const totalAirChangeRate = baseAirChangeRate + windowInfiltration;
-        u.ventilationHeatLoss = (vol * totalAirChangeRate * tempDiff * 0.33).toFixed(0);
+        //Thermal bridging calculation
+        const thermalBridgingFactor = BUILDING_AGE[buildingAge] || 0.10;
+        const thermalBridgingLoss = parseFloat(u.fabricHeatLoss) * thermalBridgingFactor;
+      
+        const subtotal = parseFloat(u.fabricHeatLoss) + thermalBridgingLoss + parseFloat(u.ventilationHeatLoss);
+        const intermittentFactor = HEATING_PATTERN[heatingPattern] || 0;
+        const intermittentUplift = subtotal * intermittentFactor;
+        u.requiredHeat = (subtotal + intermittentUplift).toFixed(0);
+        
+        // ventilation heat loss calculation with room-specific ACH
+        const roomACH = ROOM_TYPE_DATA[u.roomType]?.ach || 1.0;
+        const totalACH = roomACH + (windowConditionData.infiltration * (winA / 10));
+        u.ventilationHeatLoss = (vol * totalACH * tempDiff * 0.33).toFixed(0);
         
         // Total required heat
         const totalLoss = parseFloat(u.fabricHeatLoss) + parseFloat(u.ventilationHeatLoss);
@@ -678,9 +743,27 @@ function App() {
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
                 />
               </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Building Age</label>
+                <select value={buildingAge} onChange={(e) => setBuildingAge(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none">
+                  {Object.keys(BUILDING_AGE).map(age => <option key={age} value={age}>{age}</option>)}
+                </select>
+              </div>
+            
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Heating Pattern</label>
+                <select value={heatingPattern} onChange={(e) => setHeatingPattern(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none">
+                  {Object.keys(HEATING_PATTERN).map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
         {/* Rooms */}
         {rooms.map((room, idx) => (
