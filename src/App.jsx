@@ -1314,6 +1314,14 @@ function App() {
             </div>
           </div>
         ))}
+        {/* Footer */}
+<div className="text-center text-sm text-gray-500 py-4 mb-20">
+  <p>
+    This app was coded by Claude and Maria. It is available on{' '}
+    <a href="https://github.com/MariaBego56/heat-loss-calculator" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">GitHub</a>
+    {'https://heatlosscalculator.netlify.app/'}and hosted on Netlify. January 2026
+  </p>
+</div>
 
         {/* Fixed Bottom Buttons */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-300 shadow-2xl p-4 z-50">
